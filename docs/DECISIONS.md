@@ -20,3 +20,15 @@ The local PHP build has no `pdo_sqlite`, so `phpunit.xml` points tests at `clien
 
 ## 005 — Prettier formats, ESLint checks quality
 `@nuxt/eslint` stylistic rules are disabled and `eslint-config-prettier` is applied last, so the two tools never disagree about formatting.
+
+## 006 — Project progress is derived from tasks, cached in a column
+`progress = round(completed / total × 100)`, computed by `Project::recalculateProgress()` with one aggregate query. It is stored so list pages and reports don't count tasks per row, and it is not mass-assignable, so the API can never accept it as input. Services recalculate it whenever tasks change (Milestone 4).
+
+## 007 — Clients have an explicit account manager
+`clients.account_manager_id` (nullable). A PM manages the clients assigned to them, independent of which projects they run. Full schema rationale is in `docs/ERD.md`.
+
+## 008 — Demo data is environment-guarded
+`DatabaseSeeder` always seeds roles (safe in production) but seeds demo accounts — which share the password `password` — only in `local`/`testing`. A test asserts production seeding creates no users.
+
+## 009 — Sensitive columns are not mass-assignable
+`users.role_id`, `users.is_active`, `projects.progress`, and the owner columns (`created_by`, comment `user_id`/`task_id`) are excluded from `#[Fillable]`. They are set explicitly by code that has checked permissions, so a request cannot smuggle them in.
