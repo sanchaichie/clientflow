@@ -71,6 +71,27 @@ class Task extends Model
         $query->whereIn('project_id', Project::query()->visibleTo($user)->select('id'));
     }
 
+    /** Tasks whose project is not archived. */
+    #[Scope]
+    protected function inOpenProjects(Builder $query): void
+    {
+        $query->whereHas('project', fn (Builder $p) => $p->whereNull('archived_at'));
+    }
+
+    /**
+     * The overdue rule as raw SQL for SUM(CASE WHEN … ) aggregates.
+     * Must stay identical to scopeOverdue() / isOverdue().
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    public static function overdueSql(string $table = 'tasks'): array
+    {
+        return [
+            "{$table}.status != ? AND {$table}.due_date < ?",
+            [TaskStatus::Completed->value, today()->toDateString()],
+        ];
+    }
+
     /** Not completed and due before today. */
     #[Scope]
     protected function overdue(Builder $query): void

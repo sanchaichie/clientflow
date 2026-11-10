@@ -68,7 +68,10 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // The agency's timezone. Due dates are calendar days, so "today", "overdue"
+    // and report date ranges are evaluated in this zone. Set it once before
+    // go-live (timestamps are stored in it).
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

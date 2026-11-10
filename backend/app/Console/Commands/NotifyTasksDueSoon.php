@@ -29,7 +29,7 @@ class NotifyTasksDueSoon extends Command
             ->whereNull('due_soon_notified_at')
             ->whereBetween('due_date', [today(), today()->addDay()])
             ->whereHas('assignee', fn ($q) => $q->where('is_active', true))
-            ->whereHas('project', fn ($q) => $q->whereNull('archived_at'))
+            ->inOpenProjects()
             ->with('assignee')
             ->chunkById(200, function ($tasks) use (&$sent) {
                 foreach ($tasks as $task) {

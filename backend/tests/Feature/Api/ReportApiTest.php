@@ -55,6 +55,28 @@ class ReportApiTest extends TestCase
             ['user_id' => $ann->id, 'name' => 'Ann', 'assigned' => 2, 'completed' => 1, 'pending' => 1, 'overdue' => 1, 'completion_rate' => 50],
             ['user_id' => $bob->id, 'name' => 'Bob', 'assigned' => 1, 'completed' => 1, 'pending' => 0, 'overdue' => 0, 'completion_rate' => 100],
         ], $data['members']);
+        // Unassigned work is reported separately so team totals add up to the headline.
+        $this->assertSame(['assigned' => 1, 'completed' => 0, 'pending' => 1, 'overdue' => 0, 'completion_rate' => 0], $data['unassigned']);
+    }
+
+    public function test_overdue_means_overdue_now_whatever_the_date_range(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $ann = User::factory()->create(['name' => 'Ann']);
+        $p = Project::factory()->active()->create();
+        // Created long before the selected range, and still overdue today.
+        Task::factory()->for($p)->overdue()->create(['assignee_id' => $ann->id, 'created_at' => now()->subDays(60)]);
+
+        $from = now()->subDays(29)->toDateString();
+        $data = $this->actingAs($admin)->getJson("/api/reports?from={$from}")->json('data');
+
+        $this->assertSame(0, $data['completion']['total']);   // not created in range
+        $this->assertSame(1, $data['overdue']['count']);      // but overdue now
+        $this->assertCount(1, $data['overdue']['tasks']);
+        $this->assertSame(
+            [['user_id' => $ann->id, 'name' => 'Ann', 'assigned' => 0, 'completed' => 0, 'pending' => 0, 'overdue' => 1, 'completion_rate' => 0]],
+            $data['members'],
+        );
     }
 
     public function test_date_range_limits_to_records_created_in_it(): void

@@ -119,15 +119,16 @@ export interface ReportData {
   tasks_by_status: Record<TaskStatus, number>
   completion: { total: number; completed: number; pending: number; rate: number }
   overdue: { count: number; tasks: Task[] }
-  members: {
-    user_id: number
-    name: string
-    assigned: number
-    completed: number
-    pending: number
-    overdue: number
-    completion_rate: number
-  }[]
+  members: ({ user_id: number; name: string } & ReportFigures)[]
+  unassigned: ReportFigures
+}
+
+export interface ReportFigures {
+  assigned: number
+  completed: number
+  pending: number
+  overdue: number
+  completion_rate: number
 }
 
 export interface DashboardData {

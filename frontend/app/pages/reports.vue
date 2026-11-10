@@ -22,7 +22,20 @@ const presetItems = [
 
 const iso = (d: Date) => d.toLocaleDateString('en-CA') // YYYY-MM-DD in local time
 
-const range = computed<{ from?: string; to?: string }>(() => {
+/** Problem with the custom range, if any (checked before sending). */
+const rangeProblem = computed(() => {
+  if (preset.value !== 'custom') return null
+  if (!customFrom.value && !customTo.value) return 'Choose a start and/or end date.'
+  if (customFrom.value && customTo.value && customTo.value < customFrom.value)
+    return 'The end date must be on or after the start date.'
+  return null
+})
+
+/**
+ * The query for the current filter. A function, not a computed: "today" must
+ * be read when the request is made, so presets keep moving past midnight.
+ */
+function currentRange(): { from?: string; to?: string } {
   const today = new Date()
   switch (preset.value) {
     case '30':
@@ -38,26 +51,33 @@ const range = computed<{ from?: string; to?: string }>(() => {
     default:
       return {}
   }
-})
+}
 
 // --- Data ------------------------------------------------------------------------
 const data = ref<ReportData | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+let requestId = 0
 
 async function load() {
+  if (rangeProblem.value) return // don't send a request we know is invalid
+  const id = ++requestId
   loading.value = true
   error.value = null
   try {
-    data.value = (await api<Item<ReportData>>('/api/reports', { query: range.value })).data
+    const res = await api<Item<ReportData>>('/api/reports', { query: currentRange() })
+    if (id === requestId) data.value = res.data // ignore responses to outdated requests
   } catch (e) {
+    if (id !== requestId) return
     error.value = toApiError(e).message
+    // Never leave the previous period's figures on screen under an error.
+    data.value = null
   } finally {
-    loading.value = false
+    if (id === requestId) loading.value = false
   }
 }
 onMounted(load)
-watch(range, load)
+watch([preset, customFrom, customTo], load)
 
 const projectBars = computed(() =>
   projectStatuses.map((s) => ({
@@ -89,10 +109,10 @@ const rangeLabel = computed(() => {
           <USelect v-model="preset" :items="presetItems" class="w-44" />
         </UFormField>
         <template v-if="preset === 'custom'">
-          <UFormField label="From">
+          <UFormField label="From" :error="rangeProblem && customFrom ? true : undefined">
             <UInput v-model="customFrom" type="date" :max="customTo || undefined" />
           </UFormField>
-          <UFormField label="To">
+          <UFormField label="To" :error="rangeProblem ?? undefined">
             <UInput v-model="customTo" type="date" :min="customFrom || undefined" />
           </UFormField>
         </template>
@@ -144,9 +164,10 @@ const rangeLabel = computed(() => {
                 name="i-lucide-alarm-clock-off"
                 :class="data.overdue.count ? 'text-error' : ''"
               />
-              Overdue
+              Overdue now
             </p>
             <p class="mt-1 text-2xl font-semibold text-highlighted">{{ data.overdue.count }}</p>
+            <p class="text-xs text-dimmed">regardless of period</p>
           </UCard>
         </div>
 
@@ -192,7 +213,7 @@ const rangeLabel = computed(() => {
             <h3 class="font-medium text-highlighted">Team completion</h3>
           </template>
           <UEmpty
-            v-if="!data.members.length"
+            v-if="!data.members.length && !data.unassigned.assigned"
             icon="i-lucide-users"
             title="No assigned tasks in this period"
             variant="naked"
@@ -213,6 +234,29 @@ const rangeLabel = computed(() => {
                 done · {{ m.completion_rate }}%
                 <span v-if="m.overdue" class="ms-2 inline-flex items-center gap-0.5 text-error">
                   <UIcon name="i-lucide-alarm-clock-off" /> {{ m.overdue }} overdue
+                </span>
+              </span>
+            </li>
+            <!-- Unassigned work, so the rows add up to the headline totals. -->
+            <li
+              v-if="data.unassigned.assigned || data.unassigned.overdue"
+              class="grid items-center gap-x-4 gap-y-1 py-3 sm:grid-cols-[12rem_1fr_auto]"
+            >
+              <span class="truncate text-sm text-muted italic">Unassigned</span>
+              <ChartsMeterBar
+                :value="data.unassigned.completion_rate"
+                :label="`Unassigned: ${data.unassigned.completion_rate}% completed`"
+              />
+              <span class="text-sm whitespace-nowrap text-muted tabular-nums">
+                <span class="font-medium text-highlighted"
+                  >{{ data.unassigned.completed }}/{{ data.unassigned.assigned }}</span
+                >
+                done
+                <span
+                  v-if="data.unassigned.overdue"
+                  class="ms-2 inline-flex items-center gap-0.5 text-error"
+                >
+                  <UIcon name="i-lucide-alarm-clock-off" /> {{ data.unassigned.overdue }} overdue
                 </span>
               </span>
             </li>

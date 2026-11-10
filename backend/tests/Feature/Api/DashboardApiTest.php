@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class DashboardApiTest extends TestCase
@@ -59,6 +60,29 @@ class DashboardApiTest extends TestCase
         $this->assertSame(1, $data['stats']['pending_tasks']);
         $this->assertSame(1, $data['stats']['overdue_tasks']);
         $this->assertCount(1, $data['upcoming_tasks']);
+    }
+
+    public function test_due_today_follows_the_configured_agency_timezone(): void
+    {
+        // 20:00 UTC on June 1st is already June 2nd in Manila (UTC+8).
+        $this->travelTo(Carbon::parse('2026-06-01 20:00:00', 'UTC'));
+        $admin = User::factory()->admin()->create();
+        $p = Project::factory()->active()->create();
+        Task::factory()->for($p)->withStatus(TaskStatus::Todo)->create(['due_date' => '2026-06-02']);
+
+        $utc = $this->actingAs($admin)->getJson('/api/dashboard')->json('data.stats.due_today_tasks');
+
+        $original = date_default_timezone_get();
+        config(['app.timezone' => 'Asia/Manila']);
+        date_default_timezone_set('Asia/Manila');
+        try {
+            $manila = $this->actingAs($admin)->getJson('/api/dashboard')->json('data.stats.due_today_tasks');
+        } finally {
+            date_default_timezone_set($original);
+        }
+
+        $this->assertSame(0, $utc);    // in UTC it is still June 1st
+        $this->assertSame(1, $manila); // for a Manila agency the task is due today
     }
 
     public function test_pm_sees_progress_for_their_open_projects_only(): void

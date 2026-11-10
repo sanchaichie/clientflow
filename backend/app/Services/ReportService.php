@@ -16,8 +16,12 @@ use Illuminate\Support\Facades\DB;
  *
  * Scope: everything the user can see (admins: all; PMs: projects they manage
  * or belong to), excluding archived projects.
- * Date range: projects and tasks *created* within [from, to] (inclusive
- * days). Overdue is evaluated against today.
+ *
+ * - Status breakdowns, completion and per-member assigned/completed cover
+ *   projects and tasks *created* within [from, to] (whole days in the app
+ *   timezone, APP_TIMEZONE).
+ * - Overdue figures are a snapshot of what is overdue *now*, regardless of
+ *   when the task was created — an old overdue task is still overdue.
  */
 class ReportService
 {
@@ -25,11 +29,8 @@ class ReportService
     public function build(User $user, ?Carbon $from, ?Carbon $to): array
     {
         $projects = $this->inRange(Project::query()->visibleTo($user)->notArchived(), $from, $to);
-        $tasks = $this->inRange(
-            Task::query()->visibleTo($user)->whereHas('project', fn ($q) => $q->whereNull('archived_at')),
-            $from,
-            $to,
-        );
+        $tasks = $this->inRange($this->taskScope($user), $from, $to);
+        $overdue = $this->taskScope($user)->overdue();
 
         $tasksByStatus = $this->countBy(clone $tasks, 'status', TaskStatus::cases());
         $completed = $tasksByStatus[TaskStatus::Completed->value];
@@ -46,18 +47,24 @@ class ReportService
                 'total' => $total,
                 'completed' => $completed,
                 'pending' => $total - $completed,
-                'rate' => $total === 0 ? 0 : (int) round($completed / $total * 100),
+                'rate' => $this->rate($completed, $total),
             ],
             'overdue' => [
-                'count' => (clone $tasks)->overdue()->count(),
-                'tasks' => (clone $tasks)->overdue()
+                'count' => (clone $overdue)->count(),
+                'tasks' => (clone $overdue)
                     ->with(['project:id,name,manager_id', 'assignee'])
                     ->orderBy('due_date')
                     ->limit(20)
                     ->get(),
             ],
-            'members' => $this->memberSummary(clone $tasks),
+            ...$this->memberSummary(clone $tasks, clone $overdue),
         ];
+    }
+
+    /** Same visibility + open-project rule as the dashboard (shared scopes). */
+    private function taskScope(User $user): Builder
+    {
+        return Task::query()->visibleTo($user)->inOpenProjects();
     }
 
     private function inRange(Builder $query, ?Carbon $from, ?Carbon $to): Builder
@@ -91,34 +98,59 @@ class ReportService
     }
 
     /**
-     * Per-assignee totals in one grouped query (no N+1), most assigned first.
+     * Per-assignee figures in three queries whatever the team size:
+     * assigned/completed in range, overdue now, and the names.
+     * Unassigned tasks are reported separately so the totals add up.
      *
-     * @return list<array<string, mixed>>
+     * @return array{members: list<array<string, mixed>>, unassigned: array<string, int>}
      */
-    private function memberSummary(Builder $tasks): array
+    private function memberSummary(Builder $rangeTasks, Builder $overdueTasks): array
     {
-        $completed = TaskStatus::Completed->value;
-        $today = today()->toDateString();
-
-        $rows = $tasks->toBase()
-            ->join('users', 'users.id', '=', 'tasks.assignee_id')
-            ->select('users.id', 'users.name')
+        $inRange = $rangeTasks->toBase()
+            ->select('tasks.assignee_id')
             ->selectRaw('COUNT(*) AS assigned')
-            ->selectRaw('SUM(CASE WHEN tasks.status = ? THEN 1 ELSE 0 END) AS completed', [$completed])
-            ->selectRaw('SUM(CASE WHEN tasks.status != ? AND tasks.due_date < ? THEN 1 ELSE 0 END) AS overdue', [$completed, $today])
-            ->groupBy('users.id', 'users.name')
-            ->orderByDesc('assigned')
-            ->orderBy('users.name')
-            ->get();
+            ->selectRaw('SUM(CASE WHEN tasks.status = ? THEN 1 ELSE 0 END) AS completed', [TaskStatus::Completed->value])
+            ->groupBy('tasks.assignee_id')
+            ->get()
+            ->keyBy(fn ($r) => (int) $r->assignee_id); // null → 0 = unassigned
 
-        return $rows->map(fn ($r) => [
-            'user_id' => (int) $r->id,
-            'name' => $r->name,
-            'assigned' => (int) $r->assigned,
-            'completed' => (int) $r->completed,
-            'pending' => (int) $r->assigned - (int) $r->completed,
-            'overdue' => (int) $r->overdue,
-            'completion_rate' => (int) round($r->completed / $r->assigned * 100),
-        ])->values()->all();
+        $overdue = $overdueTasks->toBase()
+            ->select('tasks.assignee_id')
+            ->selectRaw('COUNT(*) AS overdue')
+            ->groupBy('tasks.assignee_id')
+            ->pluck('overdue', 'assignee_id');
+
+        $row = function (int $id) use ($inRange, $overdue): array {
+            $assigned = (int) ($inRange[$id]->assigned ?? 0);
+            $completed = (int) ($inRange[$id]->completed ?? 0);
+
+            return [
+                'assigned' => $assigned,
+                'completed' => $completed,
+                'pending' => $assigned - $completed,
+                // pluck() stores the NULL assignee under the key '' (unassigned).
+                'overdue' => (int) ($overdue[$id ?: ''] ?? 0),
+                'completion_rate' => $this->rate($completed, $assigned),
+            ];
+        };
+
+        $userIds = $inRange->keys()
+            ->merge($overdue->keys()->map(fn ($id) => (int) $id))
+            ->filter()
+            ->unique();
+        $names = User::query()->whereKey($userIds)->pluck('name', 'id');
+
+        $members = $userIds
+            ->map(fn (int $id) => ['user_id' => $id, 'name' => $names[$id] ?? 'Unknown user', ...$row($id)])
+            ->sortBy([['assigned', 'desc'], ['name', 'asc']])
+            ->values()
+            ->all();
+
+        return ['members' => $members, 'unassigned' => $row(0)];
+    }
+
+    private function rate(int $done, int $total): int
+    {
+        return $total === 0 ? 0 : (int) round($done / $total * 100);
     }
 }

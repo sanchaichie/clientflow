@@ -95,12 +95,13 @@ class DashboardService
     {
         $today = today()->toDateString();
         $completed = TaskStatus::Completed->value;
+        [$overdueSql, $overdueBindings] = Task::overdueSql();
 
         $row = $this->taskScope($user)
             ->toBase()
-            ->selectRaw('SUM(CASE WHEN status != ? THEN 1 ELSE 0 END) AS pending', [$completed])
-            ->selectRaw('SUM(CASE WHEN status != ? AND due_date < ? THEN 1 ELSE 0 END) AS overdue', [$completed, $today])
-            ->selectRaw('SUM(CASE WHEN status != ? AND due_date = ? THEN 1 ELSE 0 END) AS due_today', [$completed, $today])
+            ->selectRaw('SUM(CASE WHEN tasks.status != ? THEN 1 ELSE 0 END) AS pending', [$completed])
+            ->selectRaw("SUM(CASE WHEN {$overdueSql} THEN 1 ELSE 0 END) AS overdue", $overdueBindings)
+            ->selectRaw('SUM(CASE WHEN tasks.status != ? AND tasks.due_date = ? THEN 1 ELSE 0 END) AS due_today', [$completed, $today])
             ->first();
 
         return [
@@ -115,7 +116,7 @@ class DashboardService
     {
         return Task::query()
             ->visibleTo($user)
-            ->whereHas('project', fn ($q) => $q->whereNull('archived_at'))
+            ->inOpenProjects()
             ->when($user->isTeamMember(), fn ($q) => $q->where('assignee_id', $user->id));
     }
 }

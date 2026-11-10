@@ -38,7 +38,7 @@ class TaskController extends Controller
             ->withCount('comments')
             ->when($filters['project_id'] ?? null,
                 fn ($q, $id) => $q->where('project_id', $id),
-                fn ($q) => $q->whereHas('project', fn ($p) => $p->whereNull('archived_at')))
+                fn ($q) => $q->inOpenProjects())
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['priority'] ?? null, fn ($q, $priority) => $q->where('priority', $priority))
             ->when($filters['assignee_id'] ?? null, fn ($q, $assignee) => $q->where('assignee_id', $assignee === 'me' ? $user->id : (int) $assignee))

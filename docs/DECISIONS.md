@@ -85,11 +85,16 @@ Interpretation calls not spelled out by the spec: members may *see* all tasks in
 
 ## 016 — Reports & frontend tests (Milestone 7)
 - **`GET /api/reports?from=&to=`** (admins: everything; PMs: their projects; team members: 403 via the `viewReports` gate — spec §3 gives reports to admins and PMs only). Built by `ReportService` from grouped aggregate queries; the team summary is a single `GROUP BY` regardless of team size (tested).
-- **Date range semantics:** projects and tasks *created* within `[from, to]` (inclusive days); overdue is evaluated against today. Archived projects and their tasks are excluded. All statuses are returned, including zeros, so charts keep a stable shape.
+- **Date range semantics:** status breakdowns, completion and per-member assigned/completed cover projects and tasks *created* within `[from, to]` (inclusive days). **Overdue figures are "overdue now"** — not limited by the range, since an old overdue task is still overdue (fixed after code review; first version wrongly dropped them). Unassigned tasks are reported as their own row so team totals add up. Archived projects and their tasks are excluded. All statuses are returned, including zeros.
 - **No chart library.** Chart forms were chosen by the data's job (dataviz guidance): status breakdowns are part-to-whole comparisons → horizontal bars in one hue (not donuts); completed-vs-pending is one ratio → a meter; per-member completion → a meter list with figures. All of these are plain HTML/CSS, so `chart.js`/`vue-chartjs` from the original plan were dropped (spec §8: avoid unnecessary dependencies).
 - **Chart colour** `--chart-1` (#2a78d6 light / #3987e5 dark) was run through the palette validator against this app's own surfaces (white / slate-900): lightness, chroma and ≥ 3:1 contrast pass. Values are always printed (tooltips only add detail), and refetches dim the previous figures instead of flashing skeletons.
 - **Frontend tests:** Vitest + `@nuxt/test-utils`. `tests/unit` = plain functions (API error mapping, open-redirect guard); `tests/nuxt` = composables/components in a Nuxt runtime (permission mirror, activity sentences, badges, charts). Run with `npm test`.
 - **Role matrix** (`tests/Feature/Auth/RoleMatrixTest.php`): one table of role × protected endpoint → expected status, for spec §10.
+
+## 017 — One agency timezone (`APP_TIMEZONE`) (Milestone 8, from code review)
+Due dates are calendar days, so "today", "overdue", due-soon reminders and report date ranges must be computed in the agency's timezone — with the previous hard-coded UTC, a Manila agency's "due today" flipped at 08:00 local time. `config/app.php` now reads `APP_TIMEZONE` (default UTC). It must be set before go-live because Laravel stores timestamps in that zone. Per-user timezones are out of scope.
+
+Also from the review: the "open project" and "overdue" rules now live once on `Task` (`scopeInOpenProjects`, `scopeOverdue`, `overdueSql()`) and are reused by the dashboard, reports, task list and reminder command; `/api/dashboard` and `/api/reports` return API Resources like every other endpoint; the reports page ignores out-of-order responses, validates custom ranges before sending, and never shows a previous period's figures under an error.
 
 ## 012 — CRUD API conventions (Milestone 4)
 - **Responses:** single records as `{"data": {...}}`, lists as `{"data": [...], "links": {...}, "meta": {...}}` (Laravel API Resources). Creates return 201; archive/delete return 204.
