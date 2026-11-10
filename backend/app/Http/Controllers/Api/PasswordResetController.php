@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 
 class PasswordResetController extends Controller
@@ -20,10 +20,8 @@ class PasswordResetController extends Controller
      * Always returns the same response, whether or not the email exists, so
      * the endpoint cannot be used to discover registered addresses.
      */
-    public function sendLink(Request $request): JsonResponse
+    public function sendLink(ForgotPasswordRequest $request): JsonResponse
     {
-        $request->validate(['email' => ['required', 'email']]);
-
         Password::sendResetLink($request->only('email'));
 
         return response()->json([
@@ -32,14 +30,8 @@ class PasswordResetController extends Controller
     }
 
     /** POST /api/reset-password */
-    public function reset(Request $request): JsonResponse
+    public function reset(ResetPasswordRequest $request): JsonResponse
     {
-        $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::defaults()],
-        ]);
-
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password) {

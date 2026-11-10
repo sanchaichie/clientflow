@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\User\ListUsersRequest;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Resources\UserResource;
@@ -13,23 +14,15 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
     public function __construct(private readonly UserService $users) {}
 
     /** GET /api/users?search=&role=&active=&per_page= */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListUsersRequest $request): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', User::class);
-
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'role' => ['nullable', Rule::exists('roles', 'slug')],
-            'active' => ['nullable', 'boolean'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
+        $filters = $request->validated();
 
         $users = User::query()
             ->with('role')

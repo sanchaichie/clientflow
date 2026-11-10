@@ -2,36 +2,26 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Project\ListProjectsRequest;
 use App\Http\Requests\Project\StoreProjectRequest;
 use App\Http\Requests\Project\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
 use App\Services\ProjectService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
     public function __construct(private readonly ProjectService $projects) {}
 
     /** GET /api/projects?search=&status=&client_id=&manager_id=&archived=&sort=&per_page= */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListProjectsRequest $request): AnonymousResourceCollection
     {
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', Rule::enum(ProjectStatus::class)],
-            'client_id' => ['nullable', 'integer'],
-            'manager_id' => ['nullable', 'integer'],
-            'archived' => ['nullable', 'boolean'],
-            'sort' => ['nullable', 'string'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
+        $filters = $request->validated();
 
         // Eager-load everything the resource prints: one query per relation
         // for the whole page instead of one per row (no N+1).

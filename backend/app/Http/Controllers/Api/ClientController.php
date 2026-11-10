@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ClientStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Client\ListClientsRequest;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 /**
  * Client CRUD is simple enough to live in the controller; there is no
@@ -22,17 +21,9 @@ use Illuminate\Validation\Rule;
 class ClientController extends Controller
 {
     /** GET /api/clients?search=&status=&archived=&sort=&per_page= */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListClientsRequest $request): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', Client::class);
-
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', Rule::enum(ClientStatus::class)],
-            'archived' => ['nullable', 'boolean'],
-            'sort' => ['nullable', 'string'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
+        $filters = $request->validated();
 
         $query = Client::query()
             ->visibleTo($request->user())

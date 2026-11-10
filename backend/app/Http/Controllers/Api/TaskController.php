@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Task\ListTasksRequest;
 use App\Http\Requests\Task\StoreTaskRequest;
 use App\Http\Requests\Task\UpdateTaskRequest;
 use App\Http\Requests\Task\UpdateTaskStatusRequest;
@@ -12,11 +12,9 @@ use App\Http\Resources\TaskResource;
 use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 
 class TaskController extends Controller
 {
@@ -28,18 +26,9 @@ class TaskController extends Controller
      * Tasks of archived projects are hidden unless a project_id is given.
      * The Kanban board calls ?project_id=X&sort=position&per_page=200.
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListTasksRequest $request): AnonymousResourceCollection
     {
-        $filters = $request->validate([
-            'project_id' => ['nullable', 'integer'],
-            'status' => ['nullable', Rule::enum(TaskStatus::class)],
-            'priority' => ['nullable', Rule::enum(TaskPriority::class)],
-            'assignee_id' => ['nullable', 'regex:/^(\d+|me)$/'],
-            'due' => ['nullable', Rule::in(['overdue', 'today'])],
-            'search' => ['nullable', 'string', 'max:100'],
-            'sort' => ['nullable', 'string'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
-        ]);
+        $filters = $request->validated();
         $user = $request->user();
 
         $query = Task::query()
