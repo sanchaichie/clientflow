@@ -32,3 +32,32 @@ The local PHP build has no `pdo_sqlite`, so `phpunit.xml` points tests at `clien
 
 ## 009 — Sensitive columns are not mass-assignable
 `users.role_id`, `users.is_active`, `projects.progress`, and the owner columns (`created_by`, comment `user_id`/`task_id`) are excluded from `#[Fillable]`. They are set explicitly by code that has checked permissions, so a request cannot smuggle them in.
+
+## 010 — Permission rules (interpretation of spec §3)
+Enforced by policies (`app/Policies`) for single records and by `visibleTo()` scopes for lists — the two are kept in sync and covered by `tests/Feature/Auth/AuthorizationRulesTest.php`. Admins pass every check via `Gate::before`.
+
+| Action | Project Manager | Team Member |
+|---|---|---|
+| List / view users | ✅ (needed to add members, assign tasks) | ❌ (own profile via `/api/user`) |
+| Create / edit / deactivate users | ❌ admin only | ❌ |
+| View clients | assigned to them **or** with a project they manage | ❌ (sees client name via project) |
+| Create clients | ✅ | ❌ |
+| Edit / archive clients | only clients they account-manage | ❌ |
+| View projects | ones they manage or are a member of | ones they are a member of |
+| Create projects | ✅ | ❌ |
+| Edit / archive / manage members | only projects they manage | ❌ |
+| View tasks & comment | in projects they can view | in projects they can view |
+| Create / edit / delete tasks | in projects they manage | ❌ |
+| Change task status | in projects they manage | **only tasks assigned to them** |
+| Restore archived clients/projects | ❌ admin only | ❌ |
+
+Interpretation calls not spelled out by the spec: members may *see* all tasks in their projects but move only their own; PMs see other PMs' clients only through shared projects.
+
+## 011 — Auth hardening beyond the spec
+- Login is throttled per email+IP (5 attempts), so one attacker cannot lock out every account.
+- Wrong password and unknown email return the same error; forgot-password returns the same message whether or not the email exists (no account enumeration).
+- Deactivated users are rejected at login and, via the `active` middleware, on every request with an existing session; deactivation also deletes their database sessions.
+- Admins create accounts without choosing a password; the new user receives a set-password link (reuses the reset flow).
+- Admins cannot demote or deactivate themselves (prevents locking everyone out).
+- API 404s return a generic "Resource not found." instead of Laravel's message, which names internal model classes.
+- `Model::preventLazyLoading()` is on outside production, turning accidental N+1 queries into errors during development.

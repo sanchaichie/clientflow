@@ -53,6 +53,36 @@ class Client extends Model
         $query->whereNull('archived_at');
     }
 
+    /**
+     * Clients the user may see. Mirrors ClientPolicy::view():
+     * admins see all; PMs see clients they account-manage or that have a
+     * project they manage; team members see none (they see a project's
+     * client name through the project instead).
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if (! $user->isProjectManager()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($user) {
+            $q->where('account_manager_id', $user->id)
+                ->orWhereHas('projects', fn (Builder $p) => $p->where('manager_id', $user->id));
+        });
+    }
+
+    public function isAccountManagedBy(User $user): bool
+    {
+        return $this->account_manager_id === $user->id;
+    }
+
     public function isArchived(): bool
     {
         return $this->archived_at !== null;

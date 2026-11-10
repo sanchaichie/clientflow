@@ -57,6 +57,20 @@ class Task extends Model
         return $this->hasMany(TaskComment::class);
     }
 
+    /**
+     * Tasks the user may see: everything in projects visible to them.
+     * Mirrors TaskPolicy::view().
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        $query->whereIn('project_id', Project::query()->visibleTo($user)->select('id'));
+    }
+
     /** Not completed and due before today. */
     #[Scope]
     protected function overdue(Builder $query): void

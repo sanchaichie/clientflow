@@ -68,6 +68,35 @@ class Project extends Model
         $query->whereNull('archived_at');
     }
 
+    /**
+     * Projects the user may see: admins see all; everyone else sees projects
+     * they manage or are a member of. Mirrors ProjectPolicy::view().
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($user) {
+            $q->where('manager_id', $user->id)
+                ->orWhereHas('members', fn (Builder $m) => $m->whereKey($user->id));
+        });
+    }
+
+    public function isManagedBy(User $user): bool
+    {
+        return $this->manager_id === $user->id;
+    }
+
+    public function hasMember(User $user): bool
+    {
+        return $this->relationLoaded('members')
+            ? $this->members->contains($user)
+            : $this->members()->whereKey($user->id)->exists();
+    }
+
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
