@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectMemberController;
@@ -26,6 +27,7 @@ Route::middleware('throttle:6,1')->group(function () {
 Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::get('/dashboard', DashboardController::class);
 
     Route::apiResource('users', UserController::class);
 

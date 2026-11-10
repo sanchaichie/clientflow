@@ -68,6 +68,13 @@ Interpretation calls not spelled out by the spec: members may *see* all tasks in
 - **Redirect targets are sanitized** (`safeRedirect`) so `?redirect=https://…` cannot send users to another site after login (open-redirect protection).
 - **No form-validation library:** Nuxt UI's `validate` function gives instant feedback; the API's 422 errors are mapped back onto the same fields (`toFormErrors`). Avoids a Zod/Valibot dependency.
 
+## 014 — Frontend screens (Milestone 5)
+- **Dashboard is one request** (`GET /api/dashboard`, `DashboardService`): stats come from two aggregate queries (projects, tasks) instead of many counts. Admins/PMs see figures for everything they can access; team members see figures for *their own* tasks (`scope: my_tasks`) and no client count. Recent activity is wired but stays empty until Milestone 6 writes activity logs.
+- **Reusable building blocks:** `usePaginatedList` (page, debounced search, typed filters, stale-response guard), `DataTable` (toolbar, loading/empty/error states, pagination), `StatusBadge` + `utils/options.ts` (one source of labels/colours), `useConfirm` (confirmation before destructive actions), `UserSelect`, and one form modal per resource opened via `useOverlay()`.
+- **`usePermissions` mirrors the backend policies** so the UI hides actions the user can't perform; the API still enforces every rule.
+- **Kanban** (`vue-draggable-plus` — needed for touch support): moves are optimistic and the board reloads on error. Card positions are only sent when viewing a single project, because order is stored per project. Cards the user may not move are locked.
+- **One `TaskBoard`** (table ⇄ Kanban, filters, create/edit/delete) is used on both the Tasks page and each project's page.
+
 ## 012 — CRUD API conventions (Milestone 4)
 - **Responses:** single records as `{"data": {...}}`, lists as `{"data": [...], "links": {...}, "meta": {...}}` (Laravel API Resources). Creates return 201; archive/delete return 204.
 - **Lists:** filters via query string, `?sort=column` / `?sort=-column` against an allow-list, `?per_page=` (max 100; tasks 200 for the Kanban board). Archived clients/projects — and tasks of archived projects — are hidden unless `?archived=1` / `?project_id=` asks for them.
