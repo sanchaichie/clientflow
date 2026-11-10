@@ -21,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
         // false) for other users lets the normal policy method decide.
         Gate::before(fn (User $user) => $user->isAdmin() ? true : null);
 
+        // Reports: admins (via before) and project managers (spec §3).
+        Gate::define('viewReports', fn (User $user) => $user->isProjectManager());
+
         // Reset links open the Nuxt page, not a Laravel route.
         ResetPassword::createUrlUsing(fn (User $user, string $token) => config('app.frontend_url')
             .'/reset-password?'.http_build_query(['token' => $token, 'email' => $user->getEmailForPasswordReset()]));

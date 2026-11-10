@@ -42,6 +42,7 @@ php artisan serve --host=localhost --port=8000
 # frontend/
 npm run dev                      # http://localhost:3000
 npm run lint && npm run typecheck
+npm test                         # Vitest (tests/unit + tests/nuxt)
 npm run format
 ```
 Demo accounts (local only, password `password`): `admin@` / `pm@` / `member@clientflow.test`.

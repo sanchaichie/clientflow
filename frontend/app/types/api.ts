@@ -113,6 +113,23 @@ export interface AppNotification {
   created_at: string | null
 }
 
+export interface ReportData {
+  range: { from: string | null; to: string | null }
+  projects_by_status: Record<ProjectStatus, number>
+  tasks_by_status: Record<TaskStatus, number>
+  completion: { total: number; completed: number; pending: number; rate: number }
+  overdue: { count: number; tasks: Task[] }
+  members: {
+    user_id: number
+    name: string
+    assigned: number
+    completed: number
+    pending: number
+    overdue: number
+    completion_rate: number
+  }[]
+}
+
 export interface DashboardData {
   stats: {
     total_clients: number | null

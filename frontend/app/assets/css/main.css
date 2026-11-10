@@ -4,3 +4,18 @@
 @theme static {
   --font-sans: 'Public Sans', sans-serif;
 }
+
+/*
+ * Chart tokens (reports). One hue for every bar — the bars compare amounts,
+ * so colour carries no extra meaning. Values validated with the dataviz
+ * palette checker against this app's surfaces (white / slate-900):
+ * light #2a78d6, dark #3987e5 — lightness band, chroma and >= 3:1 contrast pass.
+ */
+:root {
+  --chart-1: #2a78d6;
+  --chart-track: #e1e0d9; /* hairline-tone track behind meters */
+}
+.dark {
+  --chart-1: #3987e5;
+  --chart-track: #2c2c2a;
+}
