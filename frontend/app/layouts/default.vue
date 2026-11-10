@@ -4,6 +4,9 @@ import type { RoleSlug } from '~/types/api'
 
 const { hasRole } = useAuth()
 
+// One poller for the whole app (the bell and pages share its count).
+onMounted(() => useNotifications().startPolling())
+
 interface NavLink extends NavigationMenuItem {
   /** Roles that see this link; omitted = everyone. Mirrors API permissions. */
   roles?: RoleSlug[]

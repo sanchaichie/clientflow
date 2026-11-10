@@ -75,6 +75,14 @@ Interpretation calls not spelled out by the spec: members may *see* all tasks in
 - **Kanban** (`vue-draggable-plus` — needed for touch support): moves are optimistic and the board reloads on error. Card positions are only sent when viewing a single project, because order is stored per project. Cards the user may not move are locked.
 - **One `TaskBoard`** (table ⇄ Kanban, filters, create/edit/delete) is used on both the Tasks page and each project's page.
 
+## 015 — Collaboration: activity log & notifications (Milestone 6)
+- **One writer for history:** `ActivityLogger` is called from the services (`TaskService`, `ProjectService`, `TaskCommentService`) inside their transactions. Entries store a snapshot (`title`/`name`) in `properties`, so history stays readable after renames or deletes — the one deliberate duplication besides `activity_logs.project_id`.
+- **Logged actions:** `task.created|updated|assigned|status_changed|commented|deleted`, `project.created|updated|status_changed|manager_changed|members_added|member_removed|archived|restored`. Reordering inside a Kanban column is *not* logged or notified (no status change).
+- **Notifications are synchronous, database channel only.** They're written in the same transaction as the change (no orphan notifications on rollback) and don't depend on a queue worker — `QUEUE_CONNECTION=database` would otherwise silently hold them until `queue:work` runs. Email/push could be added later as queued channels.
+- **Recipients** (`NotificationDispatcher`): de-duplicated, active users only, **never the person who acted**. Assigned → assignee; status change / comment → project manager + assignee; added to project / made manager → that user; due soon → assignee.
+- **Deadline reminders:** `tasks:notify-due-soon` runs daily at 08:00 (needs `schedule:work` locally / cron in production), covers open tasks due today or tomorrow, sets `due_soon_notified_at` so each task is reminded once; changing the due date clears it.
+- **Frontend polls** `GET /api/notifications/unread-count` every 60 s (and when the tab regains focus) instead of a websocket — simple and enough for in-app notifications. All notification queries go through `$user->notifications()`, so users can only read/mark their own (others get 404).
+
 ## 012 — CRUD API conventions (Milestone 4)
 - **Responses:** single records as `{"data": {...}}`, lists as `{"data": [...], "links": {...}, "meta": {...}}` (Laravel API Resources). Creates return 201; archive/delete return 204.
 - **Lists:** filters via query string, `?sort=column` / `?sort=-column` against an allow-list, `?per_page=` (max 100; tasks 200 for the Kanban board). Archived clients/projects — and tasks of archived projects — are hidden unless `?archived=1` / `?project_id=` asks for them.

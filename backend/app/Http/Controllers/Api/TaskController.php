@@ -12,6 +12,7 @@ use App\Http\Resources\TaskResource;
 use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
@@ -70,7 +71,7 @@ class TaskController extends Controller
     /** PUT /api/tasks/{task} */
     public function update(UpdateTaskRequest $request, Task $task): TaskResource
     {
-        $task = $this->tasks->update($task, $request->validated());
+        $task = $this->tasks->update($task, $request->validated(), $request->user());
 
         return new TaskResource($this->loadDetails($task));
     }
@@ -82,17 +83,18 @@ class TaskController extends Controller
             $task,
             TaskStatus::from($request->validated('status')),
             $request->validated('position'),
+            $request->user(),
         );
 
         return new TaskResource($this->loadDetails($task));
     }
 
     /** DELETE /api/tasks/{task} */
-    public function destroy(Task $task): Response
+    public function destroy(Request $request, Task $task): Response
     {
         Gate::authorize('delete', $task);
 
-        $this->tasks->delete($task);
+        $this->tasks->delete($task, $request->user());
 
         return response()->noContent();
     }

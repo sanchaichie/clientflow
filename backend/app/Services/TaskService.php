@@ -7,15 +7,22 @@ use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\TaskAssigned;
+use App\Notifications\TaskStatusChanged;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Every task write goes through here so that completed_at, Kanban positions
- * and the project's cached progress always stay consistent.
- * (Activity logging and notifications hook in here in Milestone 6.)
+ * Every task write goes through here so that completed_at, Kanban positions,
+ * the project's cached progress, the activity log and notifications always
+ * stay consistent. Each method runs in one transaction.
  */
 class TaskService
 {
+    public function __construct(
+        private readonly ActivityLogger $activity,
+        private readonly NotificationDispatcher $notifier,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $data  validated StoreTaskRequest data
      */
@@ -34,6 +41,11 @@ class TaskService
             $task->save();
 
             $project->recalculateProgress();
+            $this->activity->log($creator, 'task.created', $task);
+
+            if ($task->assignee_id) {
+                $this->notifier->send([$task->assignee], new TaskAssigned($task, $creator), $creator);
+            }
 
             return $task;
         });
@@ -42,16 +54,37 @@ class TaskService
     /**
      * @param  array<string, mixed>  $data  validated UpdateTaskRequest data
      */
-    public function update(Task $task, array $data): Task
+    public function update(Task $task, array $data, User $actor): Task
     {
-        return DB::transaction(function () use ($task, $data) {
+        return DB::transaction(function () use ($task, $data, $actor) {
             $newStatus = isset($data['status']) ? TaskStatus::from($data['status']) : null;
             unset($data['status']);
 
-            $task->fill($data)->save();
+            $task->fill($data);
 
+            $assigneeChanged = $task->isDirty('assignee_id');
+            $previousAssignee = $task->getOriginal('assignee_id');
+            // A new due date deserves a new "due soon" reminder.
+            if ($task->isDirty('due_date')) {
+                $task->due_soon_notified_at = null;
+            }
+            $changedFields = array_keys(array_diff_key($task->getDirty(), array_flip(['assignee_id', 'due_soon_notified_at'])));
+
+            $task->save();
+
+            if ($changedFields) {
+                $this->activity->log($actor, 'task.updated', $task, ['fields' => $changedFields]);
+            }
+            if ($assigneeChanged) {
+                $task->load('assignee'); // the cached relation may still point to the old assignee
+                $this->activity->log($actor, 'task.assigned', $task, [
+                    'from' => $previousAssignee ? User::find($previousAssignee)?->name : null,
+                    'to' => $task->assignee?->name,
+                ]);
+                $this->notifier->send([$task->assignee], new TaskAssigned($task, $actor), $actor);
+            }
             if ($newStatus && $newStatus !== $task->status) {
-                $this->moveTo($task, $newStatus, null);
+                $this->moveTo($task, $newStatus, null, $actor);
             }
 
             return $task;
@@ -59,15 +92,17 @@ class TaskService
     }
 
     /** Kanban move: change status and/or position within the target column. */
-    public function changeStatus(Task $task, TaskStatus $status, ?int $position = null): Task
+    public function changeStatus(Task $task, TaskStatus $status, ?int $position, User $actor): Task
     {
-        return DB::transaction(fn () => $this->moveTo($task, $status, $position));
+        return DB::transaction(fn () => $this->moveTo($task, $status, $position, $actor));
     }
 
-    public function delete(Task $task): void
+    public function delete(Task $task, User $actor): void
     {
-        DB::transaction(function () use ($task) {
+        DB::transaction(function () use ($task, $actor) {
             $project = $task->project;
+            // Logged before deleting; the title snapshot keeps the entry readable.
+            $this->activity->log($actor, 'task.deleted', $task);
             $task->delete();
             $project->recalculateProgress();
         });
@@ -77,9 +112,10 @@ class TaskService
      * Place the task at $position in the $status column (append when null),
      * shifting the tasks below it down by one.
      */
-    private function moveTo(Task $task, TaskStatus $status, ?int $position): Task
+    private function moveTo(Task $task, TaskStatus $status, ?int $position, User $actor): Task
     {
-        $statusChanged = $task->status !== $status;
+        $previous = $task->status;
+        $statusChanged = $previous !== $status;
 
         if ($position === null) {
             $position = $statusChanged ? $this->nextPosition($task->project, $status) : $task->position;
@@ -100,6 +136,15 @@ class TaskService
 
         if ($statusChanged) {
             $task->project->recalculateProgress();
+            $this->activity->log($actor, 'task.status_changed', $task, [
+                'from' => $previous->value,
+                'to' => $status->value,
+            ]);
+            $this->notifier->send(
+                [$task->project->manager, $task->assignee],
+                new TaskStatusChanged($task, $previous, $status, $actor),
+                $actor,
+            );
         }
 
         return $task;

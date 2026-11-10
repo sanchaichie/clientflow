@@ -10,6 +10,7 @@ use App\Http\Resources\ProjectResource;
 use App\Models\Project;
 use App\Services\ProjectService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
@@ -62,27 +63,27 @@ class ProjectController extends Controller
     /** PUT /api/projects/{project} */
     public function update(UpdateProjectRequest $request, Project $project): ProjectResource
     {
-        $project = $this->projects->update($project, $request->validated());
+        $project = $this->projects->update($project, $request->validated(), $request->user());
 
         return new ProjectResource($this->loadDetails($project));
     }
 
     /** DELETE /api/projects/{project} — archives; projects are never hard-deleted via the API. */
-    public function destroy(Project $project): Response
+    public function destroy(Request $request, Project $project): Response
     {
         Gate::authorize('delete', $project);
 
-        $this->projects->archive($project);
+        $this->projects->archive($project, $request->user());
 
         return response()->noContent();
     }
 
     /** POST /api/projects/{project}/restore */
-    public function restore(Project $project): ProjectResource
+    public function restore(Request $request, Project $project): ProjectResource
     {
         Gate::authorize('restore', $project);
 
-        $this->projects->restore($project);
+        $this->projects->restore($project, $request->user());
 
         return new ProjectResource($this->loadDetails($project));
     }

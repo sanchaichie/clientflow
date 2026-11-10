@@ -3,11 +3,14 @@
 namespace Database\Seeders;
 
 use App\Enums\CommentType;
+use App\Enums\TaskStatus;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskComment;
 use App\Models\User;
+use App\Services\TaskCommentService;
+use App\Services\TaskService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 
@@ -56,6 +59,35 @@ class DemoDataSeeder extends Seeder
         Task::factory()->overdue()->for($project)->create(['assignee_id' => $member->id, 'created_by' => $pm->id]);
         Task::factory()->dueToday()->for($project)->create(['assignee_id' => $member->id, 'created_by' => $pm->id]);
         $project->recalculateProgress();
+
+        $this->seedCollaborationStory($project, $pm, $member);
+    }
+
+    /**
+     * A short story played through the real services, so the demo accounts
+     * start with genuine activity history and unread notifications.
+     */
+    private function seedCollaborationStory(Project $project, User $pm, User $member): void
+    {
+        $tasks = app(TaskService::class);
+        $comments = app(TaskCommentService::class);
+
+        $task = $tasks->create($project, [
+            'title' => 'Prepare the client kickoff deck',
+            'description' => 'Outline goals, timeline and responsibilities for the kickoff call.',
+            'priority' => 'high',
+            'due_date' => today()->addDays(3)->toDateString(),
+            'assignee_id' => $member->id,
+        ], $pm);                                                         // → member notified (assigned)
+
+        $tasks->changeStatus($task, TaskStatus::InProgress, null, $member); // → PM notified (status)
+        $comments->create($task, [
+            'type' => CommentType::WorkUpdate->value,
+            'body' => 'First draft is done — slides 1–8 ready, still waiting on the timeline.',
+        ], $member);                                                     // → PM notified (work update)
+        $comments->create($task, [
+            'body' => 'Looks good! I will send you the timeline this afternoon.',
+        ], $pm);                                                         // → member notified (comment)
     }
 
     /**

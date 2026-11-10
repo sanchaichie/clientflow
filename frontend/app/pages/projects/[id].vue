@@ -32,6 +32,7 @@ async function edit() {
 const tabs: TabsItem[] = [
   { label: 'Tasks', icon: 'i-lucide-list-checks', slot: 'tasks' as const, value: 'tasks' },
   { label: 'Members', icon: 'i-lucide-users', slot: 'members' as const, value: 'members' },
+  { label: 'Activity', icon: 'i-lucide-activity', slot: 'activity' as const, value: 'activity' },
   { label: 'Overview', icon: 'i-lucide-info', slot: 'overview' as const, value: 'overview' }
 ]
 </script>
@@ -118,6 +119,12 @@ const tabs: TabsItem[] = [
           <div class="pt-4">
             <ProjectMembers :project="project" @changed="load" />
           </div>
+        </template>
+
+        <template #activity>
+          <UCard class="mt-4">
+            <ActivityFeed :project-id="project.id" />
+          </UCard>
         </template>
 
         <template #overview>

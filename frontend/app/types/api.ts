@@ -85,6 +85,34 @@ export interface ActivityLog {
   created_at: string | null
 }
 
+export type CommentType = 'comment' | 'work_update'
+
+export interface TaskComment {
+  id: number
+  task_id: number
+  type: CommentType
+  body: string
+  user_id: number
+  author?: User
+  created_at: string | null
+}
+
+export type NotificationKind =
+  'task_assigned' | 'task_status_changed' | 'task_commented' | 'project_assigned' | 'task_due_soon'
+
+export interface AppNotification {
+  id: string
+  kind: NotificationKind
+  message: string
+  url: string
+  excerpt?: string
+  task_id?: number
+  project_id?: number
+  actor?: string | null
+  read_at: string | null
+  created_at: string | null
+}
+
 export interface DashboardData {
   stats: {
     total_clients: number | null

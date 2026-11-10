@@ -91,6 +91,11 @@ async function openCreate() {
   if (saved) reload()
 }
 
+/** Clicking a task opens its detail page (comments + history). */
+function openTask(task: Task) {
+  return navigateTo(`/tasks/${task.id}`)
+}
+
 async function openEdit(task: Task) {
   if (!canEditTask(task)) return
   const saved = await taskForm.open({ task })
@@ -233,7 +238,7 @@ const filterItems = {
         <button
           type="button"
           class="text-left font-medium text-highlighted hover:underline"
-          @click="openEdit(row.original)"
+          @click="openTask(row.original)"
         >
           {{ row.original.title }}
         </button>
@@ -283,7 +288,7 @@ const filterItems = {
         v-else
         :tasks="kanbanTasks"
         :single-project="singleProject"
-        @open="openEdit"
+        @open="openTask"
         @changed="reload"
       />
       <p v-if="!singleProject" class="mt-3 text-xs text-muted">

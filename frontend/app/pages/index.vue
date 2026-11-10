@@ -188,7 +188,7 @@ const cards = computed(() => {
         </UCard>
       </div>
 
-      <!-- Recent activity: filled once activity logging lands (Milestone 6). -->
+      <!-- Recent activity across the projects this user can see. -->
       <UCard>
         <template #header>
           <h3 class="font-medium text-highlighted">Recent activity</h3>
@@ -200,10 +200,18 @@ const cards = computed(() => {
           description="Task updates, comments and project changes will appear here."
           variant="naked"
         />
-        <ul v-else class="space-y-2 text-sm">
-          <li v-for="item in data.recent_activity" :key="item.id">
-            <span class="font-medium">{{ item.user?.name ?? 'Someone' }}</span>
-            {{ item.action }} · <span class="text-muted">{{ formatDate(item.created_at) }}</span>
+        <ul v-else class="divide-y divide-default">
+          <li
+            v-for="item in data.recent_activity"
+            :key="item.id"
+            class="flex items-start gap-3 py-2"
+          >
+            <UIcon :name="describeActivity(item).icon" class="mt-0.5 size-4 shrink-0 text-muted" />
+            <p class="min-w-0 flex-1 text-sm">
+              <span class="font-medium">{{ item.user?.name ?? 'Someone' }}</span>
+              {{ describeActivity(item).text }}
+            </p>
+            <span class="shrink-0 text-xs text-dimmed">{{ timeAgo(item.created_at) }}</span>
           </li>
         </ul>
       </UCard>

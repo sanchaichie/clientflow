@@ -20,6 +20,7 @@ defineProps<{ title: string }>()
         </template>
         <template #right>
           <slot name="actions" />
+          <NotificationBell />
         </template>
       </UDashboardNavbar>
     </template>
