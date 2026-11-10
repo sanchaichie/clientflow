@@ -45,5 +45,3 @@ npm run lint && npm run typecheck
 npm run format
 ```
 Demo accounts (local only, password `password`): `admin@` / `pm@` / `member@clientflow.test`.
-
-`backend/CLAUDE.md` and `backend/AGENTS.md` are Laravel skeleton boilerplate about installing Laravel Boost; they are not project rules.
