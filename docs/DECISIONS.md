@@ -62,6 +62,12 @@ Interpretation calls not spelled out by the spec: members may *see* all tasks in
 - API 404s return a generic "Resource not found." instead of Laravel's message, which names internal model classes.
 - `Model::preventLazyLoading()` is on outside production, turning accidental N+1 queries into errors during development.
 
+## 013 — Frontend auth flow (Milestone 5)
+- **One API client** (`plugins/api.ts`, used via `useApi()`): sends cookies, fetches Sanctum's CSRF cookie before the first write and echoes it as `X-XSRF-TOKEN`, and on a 401 clears the user and redirects to `/login?redirect=…`.
+- **`auth.global` middleware** asks `GET /api/user` once per page load; pages marked `auth: 'guest'` (login, password reset) are for logged-out users, everything else requires login. A `role` middleware restricts pages by role — a convenience only, since the API enforces the same rules.
+- **Redirect targets are sanitized** (`safeRedirect`) so `?redirect=https://…` cannot send users to another site after login (open-redirect protection).
+- **No form-validation library:** Nuxt UI's `validate` function gives instant feedback; the API's 422 errors are mapped back onto the same fields (`toFormErrors`). Avoids a Zod/Valibot dependency.
+
 ## 012 — CRUD API conventions (Milestone 4)
 - **Responses:** single records as `{"data": {...}}`, lists as `{"data": [...], "links": {...}, "meta": {...}}` (Laravel API Resources). Creates return 201; archive/delete return 204.
 - **Lists:** filters via query string, `?sort=column` / `?sort=-column` against an allow-list, `?per_page=` (max 100; tasks 200 for the Kanban board). Archived clients/projects — and tasks of archived projects — are hidden unless `?archived=1` / `?project_id=` asks for them.
