@@ -30,10 +30,15 @@ class ClientPolicy
         return $user->isProjectManager();
     }
 
-    /** PMs manage only the clients assigned to them (ERD decision C). */
+    /**
+     * PMs manage only the clients assigned to them (ERD decision C).
+     * Archived clients are read-only for everyone but admins.
+     */
     public function update(User $user, Client $client): bool
     {
-        return $user->isProjectManager() && $client->isAccountManagedBy($user);
+        return $user->isProjectManager()
+            && $client->isAccountManagedBy($user)
+            && ! $client->isArchived();
     }
 
     /** "Delete" archives the client; see ClientController::destroy(). */

@@ -61,3 +61,12 @@ Interpretation calls not spelled out by the spec: members may *see* all tasks in
 - Admins cannot demote or deactivate themselves (prevents locking everyone out).
 - API 404s return a generic "Resource not found." instead of Laravel's message, which names internal model classes.
 - `Model::preventLazyLoading()` is on outside production, turning accidental N+1 queries into errors during development.
+
+## 012 — CRUD API conventions (Milestone 4)
+- **Responses:** single records as `{"data": {...}}`, lists as `{"data": [...], "links": {...}, "meta": {...}}` (Laravel API Resources). Creates return 201; archive/delete return 204.
+- **Lists:** filters via query string, `?sort=column` / `?sort=-column` against an allow-list, `?per_page=` (max 100; tasks 200 for the Kanban board). Archived clients/projects — and tasks of archived projects — are hidden unless `?archived=1` / `?project_id=` asks for them.
+- **Archived records are read-only** for non-admins (policies), including the tasks inside an archived project.
+- **Ownership fields are decided by the server:** a PM's new client/project is assigned to them; only admins may send `account_manager_id` / `manager_id`. `progress`, `created_by`, `completed_at` and `position` are never accepted from input.
+- **Tasks:** may only be assigned to active project members (or the manager); cannot move between projects. Removing a member unassigns their tasks in that project.
+- **Services vs. controller:** `ProjectService` and `TaskService` hold the multi-step, transactional logic (members, Kanban positions, progress). Client CRUD has no such logic and stays in its controller (spec §8: services "when business logic warrants them").
+- **N+1 protection has two layers:** resources only print relations via `whenLoaded()` (a missing eager load drops a field — caught by structure assertions — rather than firing queries), and `preventLazyLoading()` turns any direct lazy access into an error. `QueryPerformanceTest` asserts list endpoints run the same number of queries for 2 and 12 rows.

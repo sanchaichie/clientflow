@@ -27,21 +27,24 @@ class ProjectPolicy
         return $user->isProjectManager();
     }
 
-    /** Includes changing the project's status (spec §3, Project Manager). */
+    /**
+     * Includes changing the project's status (spec §3, Project Manager).
+     * Archived projects are read-only for everyone but admins.
+     */
     public function update(User $user, Project $project): bool
     {
-        return $project->isManagedBy($user);
+        return $project->isManagedBy($user) && ! $project->isArchived();
     }
 
     public function manageMembers(User $user, Project $project): bool
     {
-        return $project->isManagedBy($user);
+        return $this->update($user, $project);
     }
 
     /** "Delete" archives the project. */
     public function delete(User $user, Project $project): bool
     {
-        return $project->isManagedBy($user);
+        return $this->update($user, $project);
     }
 
     /** Un-archiving is admin-only. */

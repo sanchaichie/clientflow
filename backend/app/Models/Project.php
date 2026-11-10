@@ -21,6 +21,15 @@ class Project extends Model
     /** @use HasFactory<ProjectFactory> */
     use HasFactory;
 
+    /**
+     * Mirror the database defaults so a freshly created model (not re-read
+     * from the DB) serializes progress as 0, not null.
+     */
+    protected $attributes = [
+        'status' => 'planning',
+        'progress' => 0,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -88,6 +97,13 @@ class Project extends Model
     public function isManagedBy(User $user): bool
     {
         return $this->manager_id === $user->id;
+    }
+
+    /** Tasks may be assigned only to the project's members or its manager. */
+    public function canBeAssignedTo(int $userId): bool
+    {
+        return $this->manager_id === $userId
+            || $this->members()->whereKey($userId)->where('is_active', true)->exists();
     }
 
     public function hasMember(User $user): bool
