@@ -1,0 +1,22 @@
+# Architecture Decisions
+
+Short records of decisions that are not obvious from the code. Newest last.
+
+## 001 — Nuxt 4 instead of Nuxt 3
+The spec names Nuxt 3, which is now in maintenance. Nuxt 4 is the current release and Nuxt UI v4 targets it. The programming model (Vue 3 Composition API, auto-imports, `useFetch`/`$fetch`) is the same; the visible difference is that application code lives in `frontend/app/`.
+
+## 002 — Sanctum SPA cookie authentication (not bearer tokens)
+The SPA authenticates with Laravel's session cookie, protected by Sanctum's CSRF cookie (`XSRF-TOKEN`). No token is stored in JavaScript-readable storage, which limits the damage of an XSS bug.
+Requirements this creates:
+- SPA and API must share a top-level domain (`localhost` in dev). `SESSION_DOMAIN=localhost`, `SANCTUM_STATEFUL_DOMAINS=localhost:3000`.
+- CORS must name the SPA origin explicitly (`FRONTEND_URL`) and set `supports_credentials=true`; browsers reject `*` with credentials.
+- `bootstrap/app.php` enables `$middleware->statefulApi()`.
+
+## 003 — Frontend runs in SPA mode (`ssr: false`)
+Every page sits behind a login, so server rendering brings no SEO benefit. With SSR, the Nuxt server would have to forward the user's cookies to Laravel on every request; in SPA mode the browser talks to Sanctum directly.
+
+## 004 — Tests run against a dedicated MySQL database
+The local PHP build has no `pdo_sqlite`, so `phpunit.xml` points tests at `clientflow_test` (MySQL 8.4) instead of in-memory SQLite. This also means tests exercise the same database engine as production.
+
+## 005 — Prettier formats, ESLint checks quality
+`@nuxt/eslint` stylistic rules are disabled and `eslint-config-prettier` is applied last, so the two tools never disagree about formatting.

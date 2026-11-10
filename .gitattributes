@@ -1,0 +1,8 @@
+# Store text files with LF in the repo and check them out with LF,
+# matching Prettier/Pint output and avoiding CRLF churn on Windows.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
